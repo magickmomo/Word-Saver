@@ -62,7 +62,6 @@ function renderDictionary() {
     });
     content.appendChild(remove);
     content.appendChild(element("p", "word", name));
-    content.appendChild(element("br"));
     const phonetic = entry.definition?.phonetic ||
       entry.definition?.results?.[0]?.lexicalEntries?.[0]?.pronunciations?.[0]?.phoneticSpelling;
     if (phonetic) content.appendChild(element("p", "phonetic", `/${phonetic}/`));
