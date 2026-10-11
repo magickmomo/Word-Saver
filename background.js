@@ -169,7 +169,7 @@ chrome.contextMenus.onClicked.addListener(async (clickData) => {
         updated.unshift(...updated.splice(index, 1));
         return updated;
       }
-      return [{ definition: { word }, status: "loading", synonyms: [] }, ...current];
+      return [{ definition: { word }, addedAt: new Date().toISOString(), status: "loading", synonyms: [] }, ...current];
     });
     const entry = words.find((item) => wordName(item) === word);
     if (entry && !hasDefinition(entry)) void retryDefinition(word);
