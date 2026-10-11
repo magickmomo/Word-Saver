@@ -111,14 +111,23 @@ async function resolveDefinition(word) {
       if (response.status === 404) throw new Error("Word not found");
       throw new Error(`Dictionary API returned HTTP ${response.status}`);
     }
-    const entries = await response.json();
-    if (!Array.isArray(entries) || !entries[0]?.word || !Array.isArray(entries[0]?.meanings)) {
-      throw new Error("Unexpected dictionary API response");
-    }
-    const definition = entries[0];
-    const synonyms = definition.meanings.flatMap((meaning) =>
-      (meaning.definitions || []).flatMap((entry) => entry.synonyms || [])
-    );
+    const data = await response.json();
+    const meanings = (Array.isArray(data?.en) ? data.en : [])
+      .map((part) => ({
+        partOfSpeech: part.partOfSpeech || "",
+        definitions: (part.definitions || [])
+          .map((sense) => ({
+            definition: wiktionaryText(sense.definition),
+            example: wiktionaryText(sense.examples?.[0]),
+            synonyms: [],
+          }))
+          .filter((sense) => sense.definition),
+      }))
+      .filter((part) => part.definitions.length);
+    if (!meanings.length) throw new Error("No English definition found");
+    // Preserve the existing popup data shape for old and new saved entries.
+    const definition = { word, meanings, source: "Wiktionary" };
+    const synonyms = [];
     await updateDictionary((words) => words.map((entry) =>
       wordName(entry) === word && !hasDefinition(entry)
         ? { ...entry, definition, synonyms, status: "ready", error: undefined }
@@ -170,9 +179,29 @@ chrome.contextMenus.onClicked.addListener(async (clickData) => {
   }
 });
 
+// Wiktionary's definition endpoint returns HTML fragments. Convert these to
+// plain text before storing them; the popup only renders textContent.
+function wiktionaryText(value) {
+  if (typeof value !== "string") return "";
+  const entities = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
+  return value
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (match, entity) => {
+      if (entity[0] === "#") {
+        const numeric = entity[1]?.toLowerCase() === "x";
+        const code = parseInt(entity.slice(numeric ? 2 : 1), numeric ? 16 : 10);
+        return Number.isInteger(code) && code >= 0 && code <= 0x10ffff
+          && !(code >= 0xd800 && code <= 0xdfff) ? String.fromCodePoint(code) : match;
+      }
+      return entities[entity.toLowerCase()] || match;
+    })
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 // Retry transient upstream failures, but not permanent errors such as 404.
 async function fetchDefinitionWithRetry(word) {
-  const url = `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`;
+  const url = `https://en.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(word)}`;
   const retryable = new Set([429, 500, 502, 503, 504, 520, 521, 522, 523, 524]);
   let lastError;
   for (let attempt = 0; attempt < 3; attempt++) {
