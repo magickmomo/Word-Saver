@@ -61,6 +61,33 @@ function renderDictionary() {
     const phonetic = entry.definition?.phonetic ||
       entry.definition?.results?.[0]?.lexicalEntries?.[0]?.pronunciations?.[0]?.phoneticSpelling;
     if (phonetic) content.appendChild(element("p", "phonetic", `/${phonetic}/`));
+    const hasDefinition = Array.isArray(entry.definition?.meanings) ||
+      Array.isArray(entry.definition?.results);
+    if (!hasDefinition) {
+      const state = entry.status === "error" ? "error" : "loading";
+      const label = state === "error"
+        ? (entry.error === "Word not found" ? "Definition not found" : "Definition unavailable")
+        : "Loading definition…";
+      content.appendChild(element("p", `definition-status ${state}`, label));
+      if (state === "error") {
+        const retry = element("button", "retry-definition", "Retry");
+        retry.type = "button";
+        retry.addEventListener("click", async (event) => {
+          event.stopPropagation();
+          retry.disabled = true;
+          try {
+            const result = await chrome.runtime.sendMessage({
+              type: "retryDefinition", word: name.toLowerCase()
+            });
+            if (!result?.ok) throw new Error(result?.error || "Retry failed");
+          } catch (error) {
+            retry.disabled = false;
+            showStatus(error.message, true);
+          }
+        });
+        content.appendChild(retry);
+      }
+    }
     for (const meaning of wordMeanings(entry)) {
       if (meaning.partOfSpeech) content.appendChild(element("p", "type", meaning.partOfSpeech));
       (meaning.definitions || []).forEach((definition, index) => {
@@ -146,6 +173,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
   try {
     await refreshDictionary();
+    // If Chrome suspended the worker mid-request, resume pending lookups on popup open.
+    chrome.runtime.sendMessage({ type: "resumePending" }).catch(console.error);
   } catch (error) {
     showStatus(`Unable to load dictionary: ${error.message}`, true);
   }
