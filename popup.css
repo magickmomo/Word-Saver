@@ -366,3 +366,12 @@ div {
     color: #526a81;
 }
 .collapsible:not(.expand) .source-attribution { display: none; }
+
+/* Original save time, visible only after expanding the card. */
+.added-at {
+    margin: 8px 0 10px;
+    font-size: 11px;
+    line-height: 1.4;
+    color: #888;
+}
+.collapsible:not(.expand) .added-at { display: none; }
