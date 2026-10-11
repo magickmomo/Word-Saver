@@ -36,7 +36,7 @@
   }
 
   function watch() {
-    if (observer) observer.observe(document.body, { childList: true, subtree: true });
+    if (observer) observer.observe(document.body, { childList: true, characterData: true, subtree: true });
   }
 
   function scheduleHighlight() {
@@ -87,10 +87,15 @@
   // Watch for newly added article text in single-page applications.
   observer = new MutationObserver((mutations) => {
     if (!words.length) return;
-    if (mutations.some(({ addedNodes }) => [...addedNodes].some((node) =>
-      node.nodeType === Node.TEXT_NODE && node.textContent.trim() ||
-      node.nodeType === Node.ELEMENT_NODE && !node.closest?.(".word-saver-highlight")
-    ))) scheduleHighlight();
+    if (mutations.some((mutation) => {
+      if (mutation.type === "characterData") {
+        return !!mutation.target.textContent?.trim();
+      }
+      return [...mutation.addedNodes].some((node) =>
+        (node.nodeType === Node.TEXT_NODE && !!node.textContent?.trim()) ||
+        (node.nodeType === Node.ELEMENT_NODE && !node.closest?.(".word-saver-highlight"))
+      );
+    })) scheduleHighlight();
   });
   watch();
 
@@ -99,6 +104,12 @@
       words = savedWords(changes.dictionary.newValue);
       scheduleHighlight();
     }
+  });
+
+  // A right-click save can request an immediate refresh in the originating tab.
+  // Reloading the dictionary also handles service-worker messages arriving in any order.
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message?.type === "wordSaverRefresh") void loadWords();
   });
 
   loadWords();
