@@ -31,12 +31,19 @@ async function updateDictionary(transform) {
   });
 }
 
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({
-    id: "Save",
-    title: "Save word",
-    contexts: ["selection"],
-  });
+chrome.runtime.onInstalled.addListener(async () => {
+  try {
+    // Rebuilding the menu is safe on extension updates and reloads.
+    // This does not touch the saved dictionary.
+    await chrome.contextMenus.removeAll();
+    await chrome.contextMenus.create({
+      id: "Save",
+      title: "Save word",
+      contexts: ["selection"],
+    });
+  } catch (error) {
+    console.error("Unable to initialize Save word context menu:", error);
+  }
   // Never initialize storage with an empty dictionary on install/update.
 });
 
