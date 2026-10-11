@@ -54,6 +54,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       .catch((error) => sendResponse({ ok: false, error: error.message }));
     return true;
   }
+  if (request?.type === "retryDefinition") {
+    const word = String(request.word || "").toLowerCase().trim();
+    if (!word) { sendResponse({ ok: false, error: "Missing word" }); return false; }
+    retryDefinition(word).then(() => sendResponse({ ok: true }))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+  if (request?.type === "resumePending") {
+    readDictionary().then((words) => {
+      for (const entry of words) {
+        if (!hasDefinition(entry) && entry.status === "loading") void retryDefinition(wordName(entry));
+      }
+      sendResponse({ ok: true });
+    }).catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
   if (request?.type === "importWords") {
     updateDictionary((current) => {
       const incoming = request.words;
@@ -78,31 +94,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   return false;
 });
 
-chrome.contextMenus.onClicked.addListener(async (clickData) => {
-  if (clickData.menuItemId !== "Save" || !clickData.selectionText) return;
-  const word = clickData.selectionText.toLowerCase().trim();
-  if (!word) return;
+// Keep only one network request per word in each service-worker lifetime.
+const fetching = new Set();
 
+function hasDefinition(entry) {
+  return Array.isArray(entry?.definition?.meanings) ||
+    Array.isArray(entry?.definition?.results);
+}
+
+async function resolveDefinition(word) {
+  if (fetching.has(word)) return;
+  fetching.add(word);
   try {
-    // A previously saved word moves to the top. Fetch only for new words.
-    const existing = await enqueue(async () => (await readDictionary()).some((entry) => wordName(entry) === word));
-    if (existing) {
-      await updateDictionary((words) => {
-        const index = words.findIndex((entry) => wordName(entry) === word);
-        if (index < 0) return words;
-        const updated = words.slice();
-        updated.unshift(...updated.splice(index, 1));
-        return updated;
-      });
-      return;
-    }
-
     const response = await fetchDefinitionWithRetry(word);
     if (!response.ok) {
-      if (response.status === 404) {
-        await showNotification("Word Not Found", `"${word}" was not found in the dictionary.`);
-        return;
-      }
+      if (response.status === 404) throw new Error("Word not found");
       throw new Error(`Dictionary API returned HTTP ${response.status}`);
     }
     const entries = await response.json();
@@ -113,14 +119,54 @@ chrome.contextMenus.onClicked.addListener(async (clickData) => {
     const synonyms = definition.meanings.flatMap((meaning) =>
       (meaning.definitions || []).flatMap((entry) => entry.synonyms || [])
     );
-    await updateDictionary((words) => {
-      // Check again after the network request to avoid duplicate words.
-      if (words.some((entry) => wordName(entry) === word)) return words;
-      return [{ definition, synonyms }, ...words];
-    });
+    await updateDictionary((words) => words.map((entry) =>
+      wordName(entry) === word && !hasDefinition(entry)
+        ? { ...entry, definition, synonyms, status: "ready", error: undefined }
+        : entry
+    ));
   } catch (error) {
-    console.error("Failed to save word:", error);
-    await showNotification("Error", "Unable to save this word. Please try again.");
+    console.error(`Unable to fetch definition for ${word}:`, error);
+    await updateDictionary((words) => words.map((entry) =>
+      wordName(entry) === word && !hasDefinition(entry)
+        ? { ...entry, status: "error", error: error.message }
+        : entry
+    ));
+  } finally {
+    fetching.delete(word);
+  }
+}
+
+async function retryDefinition(word) {
+  const found = await updateDictionary((words) => words.map((entry) =>
+    wordName(entry) === word && !hasDefinition(entry)
+      ? { ...entry, status: "loading", error: undefined }
+      : entry
+  ));
+  if (found.some((entry) => wordName(entry) === word && !hasDefinition(entry))) {
+    void resolveDefinition(word);
+  }
+}
+
+chrome.contextMenus.onClicked.addListener(async (clickData) => {
+  if (clickData.menuItemId !== "Save" || !clickData.selectionText) return;
+  const word = clickData.selectionText.toLowerCase().trim();
+  if (!word) return;
+  try {
+    // Persist immediately, before any network request. Existing entries retain definitions.
+    const words = await updateDictionary((current) => {
+      const index = current.findIndex((entry) => wordName(entry) === word);
+      if (index >= 0) {
+        const updated = current.slice();
+        updated.unshift(...updated.splice(index, 1));
+        return updated;
+      }
+      return [{ definition: { word }, status: "loading", synonyms: [] }, ...current];
+    });
+    const entry = words.find((item) => wordName(item) === word);
+    if (entry && !hasDefinition(entry)) void retryDefinition(word);
+  } catch (error) {
+    console.error("Unable to save selected word:", error);
+    await showNotification("Save failed", "The word could not be stored. Please try again.");
   }
 });
 
