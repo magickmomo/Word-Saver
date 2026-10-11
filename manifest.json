@@ -23,10 +23,25 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["mark.es6.js", "content.js"]
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "mark.es6.js",
+        "content.js"
+      ],
+      "css": [
+        "highlight.css"
+      ]
     }
   ],
-  "permissions": ["storage", "notifications", "contextMenus", "activeTab"],
-  "host_permissions": ["https://en.wiktionary.org/*"]
+  "permissions": [
+    "storage",
+    "notifications",
+    "contextMenus",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://en.wiktionary.org/*"
+  ]
 }
