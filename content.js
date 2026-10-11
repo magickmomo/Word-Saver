@@ -10,7 +10,8 @@
     accuracy: "exactly",
     separateWordSearch: false,
     caseSensitive: false,
-    acrossElements: false,
+    // Rich-text sites can split a visually continuous word across inline elements.
+    acrossElements: true,
     iframes: false,
     exclude: [
       "script", "style", "noscript", "textarea", "input", "select", "option",
