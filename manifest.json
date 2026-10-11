@@ -28,5 +28,5 @@
     }
   ],
   "permissions": ["storage", "notifications", "contextMenus", "activeTab"],
-  "host_permissions": ["https://api.dictionaryapi.dev/*"]
+  "host_permissions": ["https://en.wiktionary.org/*"]
 }
