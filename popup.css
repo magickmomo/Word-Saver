@@ -303,3 +303,31 @@ div {
     padding: 0 2px;
     border-radius: 2px;
 }
+/* Backup actions: unobtrusive controls beneath the search bar. */
+.backup-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin: 0 10px 6px;
+    font-size: 12px;
+}
+.backup-controls button,
+.backup-controls label {
+    border: 1px solid #90caf9;
+    border-radius: 4px;
+    padding: 4px 6px;
+    background: #f7fbff;
+    cursor: pointer;
+}
+.backup-controls input[type="file"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    overflow: hidden;
+}
+#status {
+    margin: 0 10px 4px;
+    font-size: 12px;
+}
+#status:empty { display: none; }
