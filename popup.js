@@ -1,264 +1,209 @@
-// this parses the dictionary entries and parses it all
-
 let dictionary = [];
 
-document.addEventListener("DOMContentLoaded", async () => {
-  await getDictAndRestoreInDom();
-
-  // Add search functionality without debounce for immediate feedback
-  const searchInput = document.getElementById("search");
-  if (searchInput) {
-    searchInput.addEventListener("input", (e) => {
-      searchDict(e.target.value);
-    });
-  }
-});
-
-// Listen for storage changes
-chrome.storage.onChanged.addListener((changes) => {
-  if (changes.dictionary) {
-    const { newValue, oldValue } = changes.dictionary;
-    if (newValue.length > oldValue.length) {
-      addNewElement();
-    }
-  }
-});
-
-async function addNewElement() {
-  try {
-    const data = await chrome.storage.local.get("dictionary");
-    dictionary = data.dictionary;
-
-    const wordList = document.getElementById("dictionary");
-    const classList = document.getElementsByClassName("collapsible");
-    const newNode = dictionary[0];
-
-    if (wordList && classList.length > 0) {
-      wordList.insertBefore(addWordToDom(newNode), classList[0]);
-    }
-  } catch (error) {
-    console.error("Error adding new element:", error);
-  }
+function wordName(entry) {
+  return entry?.definition?.word || entry?.definition?.results?.[0]?.id || "";
 }
 
-async function getDictAndRestoreInDom() {
-  try {
-    const data = await chrome.storage.local.get("dictionary");
-    dictionary = data.dictionary || [];
+function wordMeanings(entry) {
+  const definition = entry?.definition;
+  if (Array.isArray(definition?.meanings)) return definition.meanings;
+  // Older Oxford API entries use lexicalEntries and senses.
+  return (definition?.results?.[0]?.lexicalEntries || []).map((lexical) => ({
+    partOfSpeech: lexical.lexicalCategory?.text || lexical.lexicalCategory || "",
+    definitions: (lexical.entries || []).flatMap((item) =>
+      (item.senses || []).map((sense) => ({
+        definition: (sense.definitions || []).join("; "),
+        example: sense.examples?.[0]?.text || "",
+        synonyms: (sense.synonyms || []).map((synonym) => synonym.text),
+      }))
+    ),
+  }));
+}
 
-    const wordList = document.getElementById("dictionary");
-    if (wordList) {
-      dictionary.forEach((word) => {
-        wordList.appendChild(addWordToDom(word));
+function element(tag, className, value) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (value !== undefined) node.textContent = value;
+  return node;
+}
+
+function renderDictionary() {
+  const list = document.getElementById("dictionary");
+  const expandedWords = new Set(
+    [...list.querySelectorAll(".collapsible.expand .word")]
+      .map((node) => node.textContent.toLowerCase())
+  );
+  list.replaceChildren();
+  for (const entry of dictionary) {
+    const name = wordName(entry);
+    if (!name) continue;
+    const container = element("div", "collapsible");
+    if (expandedWords.has(name.toLowerCase())) container.classList.add("expand");
+    container.appendChild(element("div", "expand-indicator"));
+    const content = element("div", "content");
+    const remove = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    remove.setAttribute("viewBox", "0 0 24 24");
+    remove.setAttribute("class", "remove");
+    for (const [x1,y1,x2,y2] of [[18,6,6,18],[6,6,18,18]]) {
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("class", "feather");
+      for (const [key,value] of Object.entries({x1,y1,x2,y2})) line.setAttribute(key, value);
+      remove.appendChild(line);
+    }
+    remove.addEventListener("click", async (event) => {
+      event.stopPropagation();
+      try {
+        const result = await chrome.runtime.sendMessage({ type: "deleteWord", word: name.toLowerCase() });
+        if (!result?.ok) throw new Error(result?.error || "Unable to delete word");
+        // The storage change listener renders the updated list.
+      } catch (error) {
+        showStatus(error.message, true);
+      }
+    });
+    content.appendChild(remove);
+    content.appendChild(element("p", "word", name));
+    if (entry.addedAt) {
+      const date = new Date(entry.addedAt);
+      if (!Number.isNaN(date.getTime())) {
+        const stamp = new Intl.DateTimeFormat("en-GB", {
+          day: "numeric", month: "short", year: "numeric",
+          hour: "2-digit", minute: "2-digit", hour12: false
+        }).format(date);
+        content.appendChild(element("p", "added-at", `Added ${stamp}`));
+      }
+    }
+
+    const phonetic = entry.definition?.phonetic ||
+      entry.definition?.results?.[0]?.lexicalEntries?.[0]?.pronunciations?.[0]?.phoneticSpelling;
+    if (phonetic) content.appendChild(element("p", "phonetic", `/${phonetic}/`));
+    const hasDefinition = Array.isArray(entry.definition?.meanings) ||
+      Array.isArray(entry.definition?.results);
+    if (!hasDefinition) {
+      const state = entry.status === "error" ? "error" : "loading";
+      const label = state === "error"
+        ? (entry.error === "Word not found" ? "Definition not found" : "Definition unavailable")
+        : "Loading definition…";
+      content.appendChild(element("p", `definition-status ${state}`, label));
+      if (state === "error") {
+        const retry = element("button", "retry-definition", "Retry");
+        retry.type = "button";
+        retry.addEventListener("click", async (event) => {
+          event.stopPropagation();
+          retry.disabled = true;
+          try {
+            const result = await chrome.runtime.sendMessage({
+              type: "retryDefinition", word: name.toLowerCase()
+            });
+            if (!result?.ok) throw new Error(result?.error || "Retry failed");
+          } catch (error) {
+            retry.disabled = false;
+            showStatus(error.message, true);
+          }
+        });
+        content.appendChild(retry);
+      }
+    }
+    for (const meaning of wordMeanings(entry)) {
+      if (meaning.partOfSpeech) content.appendChild(element("p", "type", meaning.partOfSpeech));
+      (meaning.definitions || []).forEach((definition, index) => {
+        const text = typeof definition === "string" ? definition : definition.definition;
+        if (text) content.appendChild(element("p", "definition", `${index + 1}. ${text}`));
+        if (definition.example) content.appendChild(element("p", "example", `"${definition.example}"`));
+        if (Array.isArray(definition.synonyms) && definition.synonyms.length) {
+          content.appendChild(element("p", "synonym", `Synonyms: ${definition.synonyms.join(", ")}`));
+        }
       });
     }
-  } catch (error) {
-    console.error("Error restoring dictionary:", error);
-  }
-}
-
-function addWordToDom(word) {
-  const newContainer = document.createElement("li");
-  newContainer.className = "collapsible";
-
-  // Add expand indicator
-  const expandIndicator = document.createElement("div");
-  expandIndicator.className = "expand-indicator";
-  newContainer.appendChild(expandIndicator);
-
-  // Handle click events
-  newContainer.addEventListener("click", (e) => {
-    // Don't toggle if clicking the remove button
-    if (e.target.closest(".remove")) return;
-    newContainer.classList.toggle("expand");
-  });
-
-  const newEntry = document.createElement("li");
-  newEntry.className = "content";
-
-  const removeButton = createRemove();
-  removeButton.addEventListener("click", (e) => {
-    e.stopPropagation(); // Prevent container click event
-    removeWordAndSave(word);
-    removeButton.parentNode.parentNode.remove();
-  });
-  newEntry.appendChild(removeButton);
-
-  const wordId = word.definition.word;
-  const wordElem = document.createElement("p");
-  wordElem.className = "word";
-  wordElem.innerText = wordId;
-  newEntry.appendChild(wordElem);
-  newEntry.appendChild(document.createElement("br"));
-
-  if (word.definition.phonetic) {
-    const phoneticElem = document.createElement("p");
-    phoneticElem.className = "phonetic";
-    phoneticElem.innerText = `/${word.definition.phonetic}/`;
-    newEntry.appendChild(phoneticElem);
-    newEntry.appendChild(document.createElement("br"));
-    newEntry.appendChild(document.createElement("br"));
-  }
-
-  const wordInfo = populateNode(word);
-  newEntry.appendChild(wordInfo);
-
-  newContainer.appendChild(newEntry);
-  return newContainer;
-}
-
-function createRemove() {
-  const removeButton = document.createElementNS(
-    "http://www.w3.org/2000/svg",
-    "svg"
-  );
-  removeButton.setAttribute("viewBox", "0 0 24 24");
-  removeButton.setAttribute("class", "remove");
-
-  const line1 = document.createElementNS("http://www.w3.org/2000/svg", "line");
-  line1.setAttribute("class", "feather");
-  line1.setAttribute("x1", "18");
-  line1.setAttribute("y1", "6");
-  line1.setAttribute("x2", "6");
-  line1.setAttribute("y2", "18");
-  removeButton.appendChild(line1);
-
-  const line2 = document.createElementNS("http://www.w3.org/2000/svg", "line");
-  line2.setAttribute("class", "feather");
-  line2.setAttribute("x1", "6");
-  line2.setAttribute("y1", "6");
-  line2.setAttribute("x2", "18");
-  line2.setAttribute("y2", "18");
-  removeButton.appendChild(line2);
-
-  return removeButton;
-}
-
-function populateNode(word) {
-  const newEntry = document.createElement("li");
-
-  word.definition.meanings.forEach((meaning) => {
-    const typeBox = document.createElement("p");
-    typeBox.className = "type";
-    typeBox.innerHTML = `<i>${meaning.partOfSpeech}</i>`;
-    newEntry.appendChild(typeBox);
-
-    meaning.definitions.forEach((def, index) => {
-      if (def.definition) {
-        const defElem = document.createElement("p");
-        defElem.className = "definition";
-        defElem.textContent = `${index + 1}. ${def.definition}`;
-        newEntry.appendChild(defElem);
-      }
-
-      if (def.example) {
-        const exampleBox = document.createElement("p");
-        exampleBox.className = "example";
-        exampleBox.innerHTML = `<i> "${def.example}"</i>`;
-        newEntry.appendChild(exampleBox);
-      }
-
-      if (def.synonyms && def.synonyms.length > 0) {
-        const synonymBox = document.createElement("p");
-        synonymBox.innerHTML = "<i>synonyms: </i>";
-        synonymBox.className = "synonym";
-        synonymBox.appendChild(
-          document.createTextNode(def.synonyms.join(", "))
-        );
-        newEntry.appendChild(synonymBox);
-        newEntry.appendChild(document.createElement("br"));
-      }
-
-      newEntry.appendChild(document.createElement("br"));
+    if (entry.definition?.source === "Wiktionary") {
+      const attribution = element("a", "source-attribution", "Definition: Wiktionary (CC BY-SA)");
+      attribution.href = `https://en.wiktionary.org/wiki/${encodeURIComponent(name)}#English`;
+      attribution.target = "_blank";
+      attribution.rel = "noopener noreferrer";
+      content.appendChild(attribution);
+    }
+    container.appendChild(content);
+    container.addEventListener("click", (event) => {
+      if (!event.target.closest(".remove")) container.classList.toggle("expand");
     });
-    newEntry.appendChild(document.createElement("br"));
-  });
-
-  return newEntry;
-}
-
-function removeWordAndSave(wordObject) {
-  const index = getIndex(wordObject);
-  if (index !== -1) {
-    dictionary.splice(index, 1);
-    saveDict();
+    list.appendChild(container);
   }
+  applySearch();
 }
 
-function getIndex(word) {
-  return dictionary.findIndex(
-    (item) => item.definition.word === word.definition.word
-  );
-}
-
-async function saveDict() {
-  try {
-    await chrome.storage.local.set({ dictionary });
-    chrome.runtime.sendMessage({ message: dictionary });
-  } catch (error) {
-    console.error("Error saving dictionary:", error);
-  }
-}
-
-function searchDict(searchQuery) {
-  const wordList = document.getElementById("dictionary");
-  if (!wordList) return;
-
-  const items = wordList.getElementsByClassName("collapsible");
-  const query = searchQuery.toLowerCase();
-
-  Array.from(items).forEach((item) => {
-    const word = item.querySelector(".word")?.textContent.toLowerCase() || "";
-    const isMatch = word.includes(query);
-
-    // Show/hide the item based on match
-    item.style.display = isMatch ? "" : "none";
-
-    if (isMatch && query) {
-      // Highlight the matching text in the word element
-      const wordElement = item.querySelector(".word");
-      highlightPartialMatches(wordElement, query);
+function applySearch() {
+  const query = document.getElementById("search").value.toLowerCase();
+  document.querySelectorAll("#dictionary .collapsible").forEach((item) => {
+    const wordElement = item.querySelector(".word");
+    const word = wordElement?.textContent || "";
+    item.style.display = word.toLowerCase().includes(query) ? "" : "none";
+    // Build the highlight using text nodes, not HTML or a user-controlled regex.
+    wordElement.replaceChildren();
+    const index = query ? word.toLowerCase().indexOf(query) : -1;
+    if (index === -1) {
+      wordElement.textContent = word;
     } else {
-      // Remove highlights when no match or no query
-      removeHighlights(item);
+      wordElement.append(document.createTextNode(word.slice(0, index)));
+      wordElement.append(element("span", "search-highlight", word.slice(index, index + query.length)));
+      wordElement.append(document.createTextNode(word.slice(index + query.length)));
     }
   });
 }
 
-function highlightPartialMatches(element, query) {
-  if (!element || !query) return;
-
-  const text = element.textContent;
-  const regex = new RegExp(`(${query})`, "gi");
-  const matches = text.match(regex);
-
-  if (!matches) return;
-
-  // Create a temporary div to hold the HTML
-  const temp = document.createElement("div");
-  temp.innerHTML = text.replace(
-    regex,
-    '<span class="search-highlight">$1</span>'
-  );
-
-  // Only update if the content has changed to avoid unnecessary re-renders
-  if (element.innerHTML !== temp.innerHTML) {
-    element.innerHTML = temp.innerHTML;
-  }
+function showStatus(message, isError = false) {
+  const status = document.getElementById("status");
+  status.textContent = message;
+  status.style.color = isError ? "#b00020" : "#444";
 }
 
-function removeHighlights(item) {
-  // Remove all highlight spans
-  const highlights = item.querySelectorAll(".search-highlight");
-  highlights.forEach((highlight) => {
-    const text = highlight.textContent;
-    highlight.replaceWith(text);
+async function refreshDictionary() {
+  const { dictionary: saved } = await chrome.storage.local.get("dictionary");
+  dictionary = Array.isArray(saved) ? saved : [];
+  renderDictionary();
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+  document.getElementById("search").addEventListener("input", applySearch);
+  document.getElementById("export").addEventListener("click", async () => {
+    try {
+      const { dictionary: saved } = await chrome.storage.local.get("dictionary");
+      const blob = new Blob([JSON.stringify(Array.isArray(saved) ? saved : [], null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "word-saver-backup.json";
+      anchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      showStatus("Backup exported.");
+    } catch (error) {
+      showStatus(error.message, true);
+    }
   });
-}
+  document.getElementById("import").addEventListener("change", async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const words = JSON.parse(await file.text());
+      if (!Array.isArray(words)) throw new Error("Backup must contain a list of words.");
+      const result = await chrome.runtime.sendMessage({ type: "importWords", words });
+      if (!result?.ok) throw new Error(result?.error || "Import failed");
+      showStatus(`Import complete. ${result.count} total words.`);
+    } catch (error) {
+      showStatus(error.message, true);
+    } finally {
+      event.target.value = "";
+    }
+  });
+  try {
+    await refreshDictionary();
+    // If Chrome suspended the worker mid-request, resume pending lookups on popup open.
+    chrome.runtime.sendMessage({ type: "resumePending" }).catch(console.error);
+  } catch (error) {
+    showStatus(`Unable to load dictionary: ${error.message}`, true);
+  }
+});
 
-// we know that the popup will be open when a search is performed...
-// so we have to change the view depending on the search
-// so anything that doesn't match the search criteria should be removed from the popup...
-
-// so first we have to search the array, we'll worry about the display later
-// search the array
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && changes.dictionary) {
+    refreshDictionary().catch((error) => showStatus(error.message, true));
+  }
+});

@@ -1,19 +1,23 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-	<title></title>
-	<link rel="stylesheet" type="text/css" href="popup.css">
-    <script type="text/javascript" src="popup.js"></script>
+  <meta charset="UTF-8">
+  <title>Little Dictionary</title>
+  <link rel="stylesheet" href="popup.css">
+  <script defer src="popup.js"></script>
 </head>
 <body>
-    <div class="arrow-container">
-        <div class="topnav">
-            <input id="search" type="text" placeholder="Search...">
-        </div>
+  <div class="arrow-container">
+    <div class="topnav">
+      <input id="search" type="text" placeholder="Search words..." aria-label="Search words">
     </div>
-    <div id="container">
-        <div id="dictionary"></div>
-    </div>
-
+  </div>
+  <div class="backup-controls">
+    <button id="export" type="button">Export backup</button>
+    <label for="import">Import backup</label>
+    <input id="import" type="file" accept=".json,application/json" aria-label="Import word backup">
+  </div>
+  <div id="status" role="status" aria-live="polite"></div>
+  <div id="container"><div id="dictionary"></div></div>
 </body>
 </html>

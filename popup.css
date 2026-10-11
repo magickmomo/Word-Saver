@@ -69,11 +69,15 @@ div {
     padding: 12px 20px 0 20px;
 }
 
-.collapsible:not(.expand) .word,
-.collapsible:not(.expand) .phonetic {
+.collapsible:not(.expand) .word {
     display: block;
-    margin-bottom: 0;
+    margin-bottom: 8px;
     line-height: 1.2;
+}
+
+/* Show pronunciation only when the word card is expanded. */
+.collapsible:not(.expand) .phonetic {
+    display: none;
 }
 
 .collapsible:not(.expand) .type,
@@ -303,3 +307,71 @@ div {
     padding: 0 2px;
     border-radius: 2px;
 }
+/* Backup actions: unobtrusive controls beneath the search bar. */
+.backup-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin: 0 10px 6px;
+    font-size: 12px;
+}
+.backup-controls button,
+.backup-controls label {
+    border: 1px solid #90caf9;
+    border-radius: 4px;
+    padding: 4px 6px;
+    background: #f7fbff;
+    cursor: pointer;
+}
+.backup-controls input[type="file"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    overflow: hidden;
+}
+#status {
+    margin: 0 10px 4px;
+    font-size: 12px;
+}
+#status:empty { display: none; }
+
+/* Pending definitions are visible even on collapsed cards. */
+.definition-status {
+    display: block;
+    font-size: 12px;
+    line-height: 1.3;
+    color: #666;
+    margin-top: 5px;
+    margin-bottom: 6px;
+}
+.definition-status.error { color: #9b3f22; }
+.collapsible:not(.expand) .definition-status {
+    display: block;
+}
+.retry-definition {
+    background: #f7fbff;
+    border: 1px solid #90caf9;
+    border-radius: 4px;
+    padding: 4px 8px;
+    margin: 4px 0 10px;
+    cursor: pointer;
+}
+.collapsible:not(.expand) .retry-definition { display: none; }
+
+.source-attribution {
+    display: block;
+    margin: 8px 0 10px;
+    font-size: 11px;
+    color: #526a81;
+}
+.collapsible:not(.expand) .source-attribution { display: none; }
+
+/* Original save time, visible only after expanding the card. */
+.added-at {
+    margin: 8px 0 10px;
+    font-size: 11px;
+    line-height: 1.4;
+    color: #888;
+}
+.collapsible:not(.expand) .added-at { display: none; }
