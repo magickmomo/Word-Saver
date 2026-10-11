@@ -335,3 +335,24 @@ div {
     font-size: 12px;
 }
 #status:empty { display: none; }
+
+/* Pending definitions are visible even on collapsed cards. */
+.definition-status {
+    font-size: 12px;
+    color: #666;
+    margin-top: 5px;
+    margin-bottom: 6px;
+}
+.definition-status.error { color: #9b3f22; }
+.collapsible:not(.expand) .definition-status {
+    display: block;
+}
+.retry-definition {
+    background: #f7fbff;
+    border: 1px solid #90caf9;
+    border-radius: 4px;
+    padding: 4px 8px;
+    margin: 4px 0 10px;
+    cursor: pointer;
+}
+.collapsible:not(.expand) .retry-definition { display: none; }
