@@ -69,11 +69,15 @@ div {
     padding: 12px 20px 0 20px;
 }
 
-.collapsible:not(.expand) .word,
-.collapsible:not(.expand) .phonetic {
+.collapsible:not(.expand) .word {
     display: block;
     margin-bottom: 0;
     line-height: 1.2;
+}
+
+/* Show pronunciation only when the word card is expanded. */
+.collapsible:not(.expand) .phonetic {
+    display: none;
 }
 
 .collapsible:not(.expand) .type,
