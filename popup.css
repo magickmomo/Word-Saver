@@ -358,3 +358,11 @@ div {
     cursor: pointer;
 }
 .collapsible:not(.expand) .retry-definition { display: none; }
+
+.source-attribution {
+    display: block;
+    margin: 8px 0 10px;
+    font-size: 11px;
+    color: #526a81;
+}
+.collapsible:not(.expand) .source-attribution { display: none; }
