@@ -103,6 +103,13 @@ function renderDictionary() {
         }
       });
     }
+    if (entry.definition?.source === "Wiktionary") {
+      const attribution = element("a", "source-attribution", "Definition: Wiktionary (CC BY-SA)");
+      attribution.href = `https://en.wiktionary.org/wiki/${encodeURIComponent(name)}#English`;
+      attribution.target = "_blank";
+      attribution.rel = "noopener noreferrer";
+      content.appendChild(attribution);
+    }
     container.appendChild(content);
     container.addEventListener("click", (event) => {
       if (!event.target.closest(".remove")) container.classList.toggle("expand");
