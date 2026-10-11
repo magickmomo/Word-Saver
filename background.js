@@ -1,148 +1,133 @@
-const language = "en";
+// Chrome can restart Manifest V3 service workers at any time.
+// Read the saved dictionary for each operation rather than caching it in memory.
+let operationQueue = Promise.resolve();
 
-let dictionary = [];
+function enqueue(operation) {
+  const result = operationQueue.then(operation);
+  operationQueue = result.catch((error) => {
+    console.error("Dictionary operation failed:", error);
+  });
+  return result;
+}
 
-// Initialize extension
+async function readDictionary() {
+  const { dictionary } = await chrome.storage.local.get("dictionary");
+  return Array.isArray(dictionary) ? dictionary : [];
+}
+
+function wordName(entry) {
+  return (entry?.definition?.word || entry?.definition?.results?.[0]?.id || "")
+    .toLowerCase()
+    .trim();
+}
+
+async function updateDictionary(transform) {
+  return enqueue(async () => {
+    const current = await readDictionary();
+    const next = transform(current);
+    if (!Array.isArray(next)) throw new Error("Invalid dictionary update");
+    await chrome.storage.local.set({ dictionary: next });
+    return next;
+  });
+}
+
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
     id: "Save",
     title: "Save word",
     contexts: ["selection"],
   });
-  initDict();
-
-  // Request notification permission when extension is installed
-  chrome.notifications.getPermissionLevel((level) => {
-    if (level !== "granted") {
-      chrome.notifications.requestPermission();
-    }
-  });
+  // Never initialize storage with an empty dictionary on install/update.
 });
 
-// Listen for messages from content script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.message) {
-    dictionary = request.message;
-    saveDict();
+  if (request?.type === "deleteWord") {
+    updateDictionary((words) => words.filter((item) => wordName(item) !== request.word))
+      .then(() => sendResponse({ ok: true }))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
   }
-  return true; // Keep the message channel open for async response
+  if (request?.type === "importWords") {
+    updateDictionary((current) => {
+      const incoming = request.words;
+      if (!Array.isArray(incoming) ||
+          incoming.some((entry) => !entry || typeof entry !== "object" || !wordName(entry))) {
+        throw new Error("Invalid dictionary backup");
+      }
+      const merged = [...current];
+      const known = new Set(current.map(wordName));
+      for (const entry of incoming) {
+        const name = wordName(entry);
+        if (!known.has(name)) {
+          merged.push(entry);
+          known.add(name);
+        }
+      }
+      return merged;
+    }).then((words) => sendResponse({ ok: true, count: words.length }))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+  return false;
 });
 
-// Handle context menu clicks
-chrome.contextMenus.onClicked.addListener((clickData) => {
+chrome.contextMenus.onClicked.addListener(async (clickData) => {
+  if (clickData.menuItemId !== "Save" || !clickData.selectionText) return;
   const word = clickData.selectionText.toLowerCase().trim();
-  const check = checkForWord(word);
+  if (!word) return;
 
-  if (check !== true) {
-    getWordDefinition(word)
-      .then((wordData) => {
-        if (wordData && wordData.length > 0) {
-          const wordObject = {
-            definition: wordData[0],
-            synonyms: wordData[0].meanings
-              .flatMap((meaning) => meaning.definitions)
-              .filter((def) => def.synonyms)
-              .flatMap((def) => def.synonyms),
-          };
-          addWordToDictAndSave(wordObject);
-        }
-      })
-      .catch((error) => {
-        // Only show error notification if it's not a "word not found" error
-        if (error.message !== "Word not found") {
-          showNotification({
-            type: "basic",
-            iconUrl: "icons/icon128.png",
-            title: "Error",
-            message:
-              "There was an error fetching the word definition. Please try again.",
-          });
-        }
-        console.error("Error processing word:", error);
+  try {
+    // A previously saved word moves to the top. Fetch only for new words.
+    const existing = await enqueue(async () => (await readDictionary()).some((entry) => wordName(entry) === word));
+    if (existing) {
+      await updateDictionary((words) => {
+        const index = words.findIndex((entry) => wordName(entry) === word);
+        if (index < 0) return words;
+        const updated = words.slice();
+        updated.unshift(...updated.splice(index, 1));
+        return updated;
       });
-  } else {
-    moveWordToTop(word);
-  }
-});
-
-// Helper function to show notifications with permission check
-function showNotification(notificationOptions) {
-  chrome.notifications.getPermissionLevel((level) => {
-    if (level === "granted") {
-      chrome.notifications.create(notificationOptions);
-    } else {
-      // If notifications aren't granted, show a message in the console
-      console.log(
-        "Notifications are disabled. Please enable them in Chrome settings."
-      );
+      return;
     }
-  });
-}
 
-async function initDict() {
-  try {
-    const data = await chrome.storage.local.get("dictionary");
-    dictionary = data.dictionary || [];
-  } catch (error) {
-    console.error("Error initializing dictionary:", error);
-    dictionary = [];
-  }
-}
-
-async function getWordDefinition(word) {
-  try {
     const response = await fetch(
-      `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(
-        word
-      )}`
+      `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`
     );
-
     if (!response.ok) {
       if (response.status === 404) {
-        // Show notification that word wasn't found
-        showNotification({
-          type: "basic",
-          iconUrl: "icons/icon128.png",
-          title: "Word Not Found",
-          message: `"${word}" was not found in the dictionary. Please check the spelling or try a different word.`,
-        });
-        throw new Error("Word not found");
+        await showNotification("Word Not Found", `"${word}" was not found in the dictionary.`);
+        return;
       }
-      throw new Error(`HTTP error! status: ${response.status}`);
+      throw new Error(`Dictionary API returned HTTP ${response.status}`);
     }
-
-    return await response.json();
+    const entries = await response.json();
+    if (!Array.isArray(entries) || !entries[0]?.word || !Array.isArray(entries[0]?.meanings)) {
+      throw new Error("Unexpected dictionary API response");
+    }
+    const definition = entries[0];
+    const synonyms = definition.meanings.flatMap((meaning) =>
+      (meaning.definitions || []).flatMap((entry) => entry.synonyms || [])
+    );
+    await updateDictionary((words) => {
+      // Check again after the network request to avoid duplicate words.
+      if (words.some((entry) => wordName(entry) === word)) return words;
+      return [{ definition, synonyms }, ...words];
+    });
   } catch (error) {
-    console.error("Error fetching word definition:", error);
-    throw error;
+    console.error("Failed to save word:", error);
+    await showNotification("Error", "Unable to save this word. Please try again.");
   }
-}
+});
 
-function checkForWord(word) {
-  return dictionary.some((key) => key.definition.word === word);
-}
-
-function moveWordToTop(word) {
-  const index = getIndex(word);
-  if (index !== -1) {
-    dictionary.unshift(dictionary.splice(index, 1)[0]);
-    saveDict();
-  }
-}
-
-function getIndex(word) {
-  return dictionary.findIndex((item) => item.definition.word === word);
-}
-
-function addWordToDictAndSave(newWord) {
-  dictionary.unshift(newWord);
-  saveDict();
-}
-
-async function saveDict() {
+async function showNotification(title, message) {
   try {
-    await chrome.storage.local.set({ dictionary });
+    await chrome.notifications.create({
+      type: "basic",
+      iconUrl: "icons/icon128.png",
+      title,
+      message,
+    });
   } catch (error) {
-    console.error("Error saving dictionary:", error);
+    console.warn("Notification unavailable:", error);
   }
 }
