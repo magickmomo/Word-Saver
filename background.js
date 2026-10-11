@@ -97,9 +97,7 @@ chrome.contextMenus.onClicked.addListener(async (clickData) => {
       return;
     }
 
-    const response = await fetch(
-      `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`
-    );
+    const response = await fetchDefinitionWithRetry(word);
     if (!response.ok) {
       if (response.status === 404) {
         await showNotification("Word Not Found", `"${word}" was not found in the dictionary.`);
@@ -125,6 +123,25 @@ chrome.contextMenus.onClicked.addListener(async (clickData) => {
     await showNotification("Error", "Unable to save this word. Please try again.");
   }
 });
+
+// Retry transient upstream failures, but not permanent errors such as 404.
+async function fetchDefinitionWithRetry(word) {
+  const url = `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`;
+  const retryable = new Set([429, 500, 502, 503, 504, 520, 521, 522, 523, 524]);
+  let lastError;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const response = await fetch(url, { signal: AbortSignal.timeout(12000) });
+      if (!retryable.has(response.status) || attempt === 2) return response;
+      lastError = new Error(`Dictionary API returned HTTP ${response.status}`);
+    } catch (error) {
+      lastError = error;
+      if (attempt === 2) throw error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500 * (2 ** attempt)));
+  }
+  throw lastError;
+}
 
 async function showNotification(title, message) {
   try {
