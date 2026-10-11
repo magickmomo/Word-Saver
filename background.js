@@ -156,7 +156,7 @@ async function retryDefinition(word) {
   }
 }
 
-chrome.contextMenus.onClicked.addListener(async (clickData) => {
+chrome.contextMenus.onClicked.addListener(async (clickData, tab) => {
   if (clickData.menuItemId !== "Save" || !clickData.selectionText) return;
   const word = clickData.selectionText.toLowerCase().trim();
   if (!word) return;
@@ -171,6 +171,11 @@ chrome.contextMenus.onClicked.addListener(async (clickData) => {
       }
       return [{ definition: { word }, addedAt: new Date().toISOString(), status: "loading", synonyms: [] }, ...current];
     });
+    // Storage change listeners update other tabs; explicitly notify the source tab.
+    // Fail quietly on pages where content scripts cannot run (e.g. chrome:// pages).
+    if (tab?.id) {
+      chrome.tabs.sendMessage(tab.id, { type: "wordSaverRefresh" }).catch(() => {});
+    }
     const entry = words.find((item) => wordName(item) === word);
     if (entry && !hasDefinition(entry)) void retryDefinition(word);
   } catch (error) {
