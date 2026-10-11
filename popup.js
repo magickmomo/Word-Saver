@@ -29,11 +29,16 @@ function element(tag, className, value) {
 
 function renderDictionary() {
   const list = document.getElementById("dictionary");
+  const expandedWords = new Set(
+    [...list.querySelectorAll(".collapsible.expand .word")]
+      .map((node) => node.textContent.toLowerCase())
+  );
   list.replaceChildren();
   for (const entry of dictionary) {
     const name = wordName(entry);
     if (!name) continue;
     const container = element("div", "collapsible");
+    if (expandedWords.has(name.toLowerCase())) container.classList.add("expand");
     container.appendChild(element("div", "expand-indicator"));
     const content = element("div", "content");
     const remove = document.createElementNS("http://www.w3.org/2000/svg", "svg");
