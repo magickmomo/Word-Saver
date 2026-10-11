@@ -1,0 +1,8 @@
+/* Only saved words are highlighted. The site retains its original text. */
+mark.word-saver-highlight {
+  background: rgba(255, 214, 91, 0.46) !important;
+  color: inherit !important;
+  border-radius: 2px;
+  padding: 0;
+  box-shadow: inset 0 -1px 0 rgba(170, 112, 20, 0.35);
+}
