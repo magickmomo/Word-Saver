@@ -110,6 +110,16 @@ function renderDictionary() {
       attribution.rel = "noopener noreferrer";
       content.appendChild(attribution);
     }
+    if (entry.addedAt) {
+      const date = new Date(entry.addedAt);
+      if (!Number.isNaN(date.getTime())) {
+        const stamp = new Intl.DateTimeFormat("en-GB", {
+          day: "numeric", month: "short", year: "numeric",
+          hour: "2-digit", minute: "2-digit", hour12: false
+        }).format(date);
+        content.appendChild(element("p", "added-at", `Added ${stamp}`));
+      }
+    }
     container.appendChild(content);
     container.addEventListener("click", (event) => {
       if (!event.target.closest(".remove")) container.classList.toggle("expand");
