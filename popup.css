@@ -71,7 +71,7 @@ div {
 
 .collapsible:not(.expand) .word {
     display: block;
-    margin-bottom: 0;
+    margin-bottom: 8px;
     line-height: 1.2;
 }
 
