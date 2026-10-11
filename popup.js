@@ -62,6 +62,17 @@ function renderDictionary() {
     });
     content.appendChild(remove);
     content.appendChild(element("p", "word", name));
+    if (entry.addedAt) {
+      const date = new Date(entry.addedAt);
+      if (!Number.isNaN(date.getTime())) {
+        const stamp = new Intl.DateTimeFormat("en-GB", {
+          day: "numeric", month: "short", year: "numeric",
+          hour: "2-digit", minute: "2-digit", hour12: false
+        }).format(date);
+        content.appendChild(element("p", "added-at", `Added ${stamp}`));
+      }
+    }
+
     const phonetic = entry.definition?.phonetic ||
       entry.definition?.results?.[0]?.lexicalEntries?.[0]?.pronunciations?.[0]?.phoneticSpelling;
     if (phonetic) content.appendChild(element("p", "phonetic", `/${phonetic}/`));
@@ -109,16 +120,6 @@ function renderDictionary() {
       attribution.target = "_blank";
       attribution.rel = "noopener noreferrer";
       content.appendChild(attribution);
-    }
-    if (entry.addedAt) {
-      const date = new Date(entry.addedAt);
-      if (!Number.isNaN(date.getTime())) {
-        const stamp = new Intl.DateTimeFormat("en-GB", {
-          day: "numeric", month: "short", year: "numeric",
-          hour: "2-digit", minute: "2-digit", hour12: false
-        }).format(date);
-        content.appendChild(element("p", "added-at", `Added ${stamp}`));
-      }
     }
     container.appendChild(content);
     container.addEventListener("click", (event) => {
