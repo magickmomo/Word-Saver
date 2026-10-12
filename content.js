@@ -1,44 +1,117 @@
-const context = document.querySelector("body");
-const instance = new Mark(context);
-let wordList = [];
+// Highlight words the user has previously saved, without changing their dictionary.
+// Mark.js is bundled locally by the extension in manifest.json.
+(() => {
+  if (!document.body || typeof Mark !== "function") return;
 
-// Listen for messages from the background script
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.message) {
-    wordList.push(request.message);
-    instance.mark(wordList);
+  const instance = new Mark(document.body);
+  const highlightOptions = {
+    element: "mark",
+    className: "word-saver-highlight",
+    accuracy: "exactly",
+    separateWordSearch: false,
+    caseSensitive: false,
+    // Rich-text sites can split a visually continuous word across inline elements.
+    acrossElements: true,
+    iframes: false,
+    exclude: [
+      "script", "style", "noscript", "textarea", "input", "select", "option",
+      "button", "code", "pre", "kbd", "samp", "svg", "canvas",
+      "[contenteditable]", "[contenteditable='true']", "[role='textbox']",
+      ".word-saver-highlight"
+    ]
+  };
+
+  let words = [];
+  let running = false;
+  let rerun = false;
+  let refreshTimer;
+  let observer;
+
+  function savedWords(entries) {
+    if (!Array.isArray(entries)) return [];
+    return [...new Set(entries
+      .map((entry) => entry?.definition?.word || entry?.definition?.results?.[0]?.id || "")
+      .filter((word) => typeof word === "string")
+      .map((word) => word.trim().toLowerCase())
+      .filter(Boolean))];
   }
-  return true; // Keep the message channel open for async response
-});
 
-// Initialize word highlighting
-instance.mark(wordList);
+  function watch() {
+    if (observer) observer.observe(document.body, { childList: true, characterData: true, subtree: true });
+  }
 
-// i know what i want to do.
-// here it has to be
-// I could onmessage execute script...
-// execute itself?
-// I don't kknow...
-// on message... re run the code
+  function scheduleHighlight() {
+    clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(highlight, 350);
+  }
 
-// search the dict.
-// fine.
-// so after we search the dict for the entry we
-// so we're going to filter the array
-// except we're not going to modify the existing arr
+  // Disconnect while Mark.js updates the DOM so its own changes don't trigger loops.
+  function highlight() {
+    if (running) {
+      rerun = true;
+      return;
+    }
+    running = true;
+    observer?.disconnect();
+    instance.unmark({
+      element: "mark",
+      className: "word-saver-highlight",
+      done() {
+        if (!words.length) return finish();
+        instance.mark(words, {
+          ...highlightOptions,
+          done: finish
+        });
+      }
+    });
+  }
 
-// search array for a match
-// right, each time you update the word that you're searching for
-// we want to update the popup based on the new array that we're filtering
-// so filter the array
-// only display any that have a match if there isn't a match then append to the
-// popup box word doesn't exist in array append message instead
-// as you backspace then do the search
-// so a full search has to be done with every new letter that's added to the array
-// I want the popup to dynamically update
+  function finish() {
+    running = false;
+    watch();
+    if (rerun) {
+      rerun = false;
+      scheduleHighlight();
+    }
+  }
 
-// step 1
-// grab text after each letter in the search box
-// so grab value of that box, fine
-// next
-// filter dict array and
+  async function loadWords() {
+    try {
+      const data = await chrome.storage.local.get("dictionary");
+      words = savedWords(data.dictionary);
+      scheduleHighlight();
+    } catch (error) {
+      console.warn("Word-Saver: unable to read saved words", error);
+    }
+  }
+
+  // Watch for newly added article text in single-page applications.
+  observer = new MutationObserver((mutations) => {
+    if (!words.length) return;
+    if (mutations.some((mutation) => {
+      if (mutation.type === "characterData") {
+        return !!mutation.target.textContent?.trim();
+      }
+      return [...mutation.addedNodes].some((node) =>
+        (node.nodeType === Node.TEXT_NODE && !!node.textContent?.trim()) ||
+        (node.nodeType === Node.ELEMENT_NODE && !node.closest?.(".word-saver-highlight"))
+      );
+    })) scheduleHighlight();
+  });
+  watch();
+
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "local" && changes.dictionary) {
+      words = savedWords(changes.dictionary.newValue);
+      scheduleHighlight();
+    }
+  });
+
+  // A right-click save can request an immediate refresh in the originating tab.
+  // Reloading the dictionary also handles service-worker messages arriving in any order.
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message?.type === "wordSaverRefresh") void loadWords();
+  });
+
+  loadWords();
+})();
