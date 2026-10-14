@@ -33,6 +33,7 @@ div {
     overflow: hidden;
     position: relative;
     width: 98%;
+    min-height: 76px;
     max-height: 85px;
     margin-bottom: 2px;
     background: ghostwhite;
@@ -52,7 +53,8 @@ div {
 }
 
 .content {
-    padding: 12px 20px;
+    /* Leave a right-hand column free for delete and expand controls. */
+    padding: 12px 44px 12px 20px;
     padding-bottom: 0px;
     box-sizing: border-box;
     float: left;
@@ -66,7 +68,7 @@ div {
 .collapsible:not(.expand) .content {
     max-height: 85px;
     overflow: hidden;
-    padding: 12px 20px 0 20px;
+    padding: 12px 44px 8px 20px;
 }
 
 .collapsible:not(.expand) .word {
@@ -123,70 +125,57 @@ div {
     margin-bottom: 5px;
 }
 
-.remove {
+/* Dedicated stacked controls in the top-right, visible without scrolling. */
+.remove,
+.expand-indicator {
     display: flex;
     align-items: center;
     justify-content: center;
     position: absolute;
-    right: 9px;
-    top: 7px;
-    width: 20px;
-    height: 20px;
-    border: none;
+    right: 8px;
+    width: 24px;
+    height: 24px;
+    border: 0;
     border-radius: 4px;
     background: transparent;
-    color: #888;
-    font: 20px/1 Arial, sans-serif;
+    color: #777;
     cursor: pointer;
     z-index: 2;
+}
+.remove {
+    top: 7px;
+    font: 20px/1 Arial, sans-serif;
+}
+.expand-indicator {
+    top: 39px;
+}
+.expand-indicator svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.25;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: transform 0.18s ease;
+}
+.collapsible.expand .expand-indicator svg {
+    transform: rotate(180deg);
+}
+.expand-indicator:hover,
+.expand-indicator:focus-visible {
+    background: #e7f0fb;
+    color: #2769a9;
 }
 .remove:hover,
 .remove:focus-visible {
     background: #fce8e6;
     color: #b42318;
-    outline-offset: 2px;
 }
-
-.expand-indicator {
-    position: absolute;
-    right: 10px;
-    bottom: 10px;
-    width: 20px;
-    height: 20px;
-    transition: transform 0.3s ease;
-}
-
-.collapsible.expand .expand-indicator {
-    transform: rotate(45deg);
-}
-
-.expand-indicator::before,
-.expand-indicator::after {
-    content: '';
-    position: absolute;
-    background-color: #666;
-    transition: background-color 0.3s ease;
-}
-
-.expand-indicator::before {
-    width: 2px;
-    height: 12px;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-}
-
-.expand-indicator::after {
-    width: 12px;
-    height: 2px;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-}
-
-.collapsible:hover .expand-indicator::before,
-.collapsible:hover .expand-indicator::after {
-    background-color: #4285f4;
+.remove:focus-visible,
+.expand-indicator:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 1px;
 }
 
 .feather {
