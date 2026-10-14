@@ -34,12 +34,12 @@ function renderDictionary() {
       .map((node) => node.textContent.toLowerCase())
   );
   list.replaceChildren();
-  for (const entry of dictionary) {
+  for (const [index, entry] of dictionary.entries()) {
     const name = wordName(entry);
     if (!name) continue;
     const container = element("div", "collapsible");
     const content = element("div", "content");
-    const contentId = `word-saver-definition-${dictionary.indexOf(entry)}`;
+    const contentId = `word-saver-definition-${index}`;
     content.id = contentId;
 
     // Keep the two controls in a fixed right-hand column, even on short cards.
