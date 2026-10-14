@@ -41,15 +41,10 @@ function renderDictionary() {
     if (expandedWords.has(name.toLowerCase())) container.classList.add("expand");
     container.appendChild(element("div", "expand-indicator"));
     const content = element("div", "content");
-    const remove = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    remove.setAttribute("viewBox", "0 0 24 24");
-    remove.setAttribute("class", "remove");
-    for (const [x1,y1,x2,y2] of [[18,6,6,18],[6,6,18,18]]) {
-      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-      line.setAttribute("class", "feather");
-      for (const [key,value] of Object.entries({x1,y1,x2,y2})) line.setAttribute(key, value);
-      remove.appendChild(line);
-    }
+    const remove = element("button", "remove", "×");
+    remove.type = "button";
+    remove.title = `Remove "${name}" from dictionary`;
+    remove.setAttribute("aria-label", remove.title);
     remove.addEventListener("click", async (event) => {
       event.stopPropagation();
       try {
