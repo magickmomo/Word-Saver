@@ -124,23 +124,27 @@ div {
 }
 
 .remove {
-    visibility: hidden;
-    display: inline-block;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     position: absolute;
-    right: 10px;
-    top: 10px;
-    width: 24px;
-    height: 24px;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    stroke-width: 2;
+    right: 9px;
+    top: 7px;
+    width: 20px;
+    height: 20px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: #888;
+    font: 20px/1 Arial, sans-serif;
     cursor: pointer;
     z-index: 2;
 }
-
-.remove:hover .feather {
-    stroke: orange;
-    transition: 300ms;
+.remove:hover,
+.remove:focus-visible {
+    background: #fce8e6;
+    color: #b42318;
+    outline-offset: 2px;
 }
 
 .expand-indicator {
