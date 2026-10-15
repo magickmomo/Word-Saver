@@ -330,7 +330,11 @@
 
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && tooltipHost) {
+      const previousMark = activeMark;
       closeTooltip();
+      if (previousMark?.isConnected) previousMark.focus({ preventScroll: true });
+      event.preventDefault();
+      event.stopPropagation();
       return;
     }
     if (event.key !== "Enter" && event.key !== " ") return;
