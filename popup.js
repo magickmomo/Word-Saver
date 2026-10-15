@@ -34,22 +34,42 @@ function renderDictionary() {
       .map((node) => node.textContent.toLowerCase())
   );
   list.replaceChildren();
-  for (const entry of dictionary) {
+  for (const [index, entry] of dictionary.entries()) {
     const name = wordName(entry);
     if (!name) continue;
     const container = element("div", "collapsible");
-    if (expandedWords.has(name.toLowerCase())) container.classList.add("expand");
-    container.appendChild(element("div", "expand-indicator"));
     const content = element("div", "content");
-    const remove = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    remove.setAttribute("viewBox", "0 0 24 24");
-    remove.setAttribute("class", "remove");
-    for (const [x1,y1,x2,y2] of [[18,6,6,18],[6,6,18,18]]) {
-      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-      line.setAttribute("class", "feather");
-      for (const [key,value] of Object.entries({x1,y1,x2,y2})) line.setAttribute(key, value);
-      remove.appendChild(line);
-    }
+    const contentId = `word-saver-definition-${index}`;
+    content.id = contentId;
+
+    // Keep the two controls in a fixed right-hand column, even on short cards.
+    const expandButton = element("button", "expand-indicator");
+    expandButton.type = "button";
+    expandButton.setAttribute("aria-controls", contentId);
+    const caret = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    caret.setAttribute("viewBox", "0 0 24 24");
+    caret.setAttribute("aria-hidden", "true");
+    const chevron = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    chevron.setAttribute("d", "m6 9 6 6 6-6");
+    caret.appendChild(chevron);
+    expandButton.appendChild(caret);
+    const setExpanded = (expanded) => {
+      container.classList.toggle("expand", expanded);
+      expandButton.setAttribute("aria-expanded", String(expanded));
+      const action = expanded ? "Collapse" : "Expand";
+      expandButton.setAttribute("aria-label", `${action} definition of ${name}`);
+      expandButton.title = `${action} definition`;
+    };
+    setExpanded(expandedWords.has(name.toLowerCase()));
+    expandButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      setExpanded(!container.classList.contains("expand"));
+    });
+    container.appendChild(expandButton);
+    const remove = element("button", "remove", "×");
+    remove.type = "button";
+    remove.title = `Remove "${name}" from dictionary`;
+    remove.setAttribute("aria-label", remove.title);
     remove.addEventListener("click", async (event) => {
       event.stopPropagation();
       try {
@@ -123,7 +143,8 @@ function renderDictionary() {
     }
     container.appendChild(content);
     container.addEventListener("click", (event) => {
-      if (!event.target.closest(".remove")) container.classList.toggle("expand");
+      if (event.target.closest(".remove, .expand-indicator, .retry-definition, a")) return;
+      setExpanded(!container.classList.contains("expand"));
     });
     list.appendChild(container);
   }
