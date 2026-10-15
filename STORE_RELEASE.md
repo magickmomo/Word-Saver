@@ -64,6 +64,15 @@ Read Google's dashboard questions carefully: a lookup **does** send the selected
 
 ## Package for upload
 
+From a checked-out copy of the repository, run:
+
+```sh
+python3 scripts/build_webstore_zip.py
+```
+
+This creates `dist/little-dictionary-1.0.0.zip` and validates the manifest, icon dimensions and ZIP integrity. If Node.js is installed it also checks JavaScript syntax. Upload **this ZIP**, not GitHub's default source-code ZIP.
+
+
 The ZIP must contain the extension files **at the top level**, not inside a wrapping folder:
 
 ```text
@@ -78,6 +87,7 @@ popup.js
 icons/icon16.png
 icons/icon48.png
 icons/icon128.png
+THIRD_PARTY_NOTICES.md
 ```
 
 The `icons/icon.svg` source and this documentation may remain in the repository; they are not required in the release package. Do **not** include `.git` or user backup files.
