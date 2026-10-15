@@ -6,3 +6,15 @@ mark.word-saver-highlight {
   padding: 0;
   box-shadow: inset 0 -1px 0 rgba(170, 112, 20, 0.35);
 }
+
+/* Saved words are interactive; allow keyboard users to open their definitions. */
+mark.word-saver-highlight {
+  cursor: pointer;
+}
+mark.word-saver-highlight:hover {
+  background: rgba(255, 214, 91, 0.68) !important;
+}
+mark.word-saver-highlight:focus-visible {
+  outline: 2px solid #2874b8;
+  outline-offset: 2px;
+}
