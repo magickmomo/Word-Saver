@@ -368,3 +368,12 @@ div {
     color: #888;
 }
 .collapsible:not(.expand) .added-at { display: none; }
+
+/* Brief disclosure visible before people start saving vocabulary. */
+.privacy-note {
+    margin: 2px 10px 7px;
+    color: #666;
+    font-size: 11px;
+    line-height: 1.35;
+}
+.privacy-note a { color: #346799; }

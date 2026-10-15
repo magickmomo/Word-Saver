@@ -1,0 +1,30 @@
+name: Chrome Web Store package
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out extension source
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate and build Chrome Web Store ZIP
+        run: python3 scripts/build_webstore_zip.py
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: little-dictionary-chrome-web-store
+          path: dist/*.zip
+          if-no-files-found: error
+          retention-days: 30

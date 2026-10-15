@@ -1,9 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Little Dictionary",
-  "author": "Mo Amer, First of his Name",
-  "description": "Save words you find on your travels",
-  "version": "1.0",
+  "description": "Save words while reading, revisit definitions, and highlight saved words across webpages.",
+  "version": "1.0.0",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
@@ -38,10 +37,10 @@
   "permissions": [
     "storage",
     "notifications",
-    "contextMenus",
-    "activeTab"
+    "contextMenus"
   ],
   "host_permissions": [
     "https://en.wiktionary.org/*"
-  ]
+  ],
+  "homepage_url": "https://github.com/magickmomo/Word-Saver"
 }
