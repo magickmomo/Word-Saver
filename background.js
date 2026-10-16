@@ -180,7 +180,6 @@ chrome.contextMenus.onClicked.addListener(async (clickData, tab) => {
     if (entry && !hasDefinition(entry)) void retryDefinition(word);
   } catch (error) {
     console.error("Unable to save selected word:", error);
-    await showNotification("Save failed", "The word could not be stored. Please try again.");
   }
 });
 
@@ -223,15 +222,3 @@ async function fetchDefinitionWithRetry(word) {
   throw lastError;
 }
 
-async function showNotification(title, message) {
-  try {
-    await chrome.notifications.create({
-      type: "basic",
-      iconUrl: "icons/icon128.png",
-      title,
-      message,
-    });
-  } catch (error) {
-    console.warn("Notification unavailable:", error);
-  }
-}
