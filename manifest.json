@@ -38,7 +38,6 @@
   ],
   "permissions": [
     "storage",
-    "notifications",
     "contextMenus"
   ],
   "host_permissions": [
